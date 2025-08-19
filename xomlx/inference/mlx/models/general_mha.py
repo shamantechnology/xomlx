@@ -5,8 +5,8 @@ import math
 from typing import Optional, Tuple
 import logging
 
-import mlx.nn as mlx_nn
-import mlx.core as mlx_core
+from mlx import nn
+from mlx import core as mx
 
 from xomlx.inference.shard import Shard
 from xomlx.helpers import DEBUG, LOG_PATH
@@ -19,7 +19,9 @@ logging.basicConfig(
     filemode="a"
 )
 
-class MultiLayerPerceptron(mlx_nn.Module):
+FLOAT_DTYPES = {mx.float16, mx.bfloat16, mx.float32, mx.float64}
+
+class MultiLayerPerceptron(nn.Module):
   def __init__(
     self,
     dim: int,
@@ -30,16 +32,17 @@ class MultiLayerPerceptron(mlx_nn.Module):
     NOTE: expand for other activations
     """
     super().__init__()
-    self.gate_proj = mlx_nn.Linear(dim, hidden_dim, False)
-    self.down_proj = mlx_nn.Linear(hidden_dim, dim, False)
-    self.up_proj = mlx_nn.Linear(dim, hidden_dim, False)
+    self.gate_proj = nn.Linear(dim, hidden_dim, False)
+    self.up_proj = nn.Linear(dim, hidden_dim, False)
+    self.down_proj = nn.Linear(hidden_dim, dim, False)
 
   def __call__(self, x):
-    return self.down_proj(
-      mlx_nn.silu(self.gate_proj(x)) * self.up_proj(x)
-    )
+    a = self.gate_proj(x)
+    b = self.up_proj(x)
+    x = a * mx.sigmoid(a) * b
+    return self.down_proj(x)
 
-class CachedMultiHeadAttention(mlx_nn.Module):
+class CachedMultiHeadAttention(nn.Module):
   """
   Cached managed version of MHA
   """
@@ -63,27 +66,27 @@ class CachedMultiHeadAttention(mlx_nn.Module):
     value_output_dims = value_output_dims or self.config["embed_dim"]
 
     self.num_heads = config["num_heads"]
-    self.rope = mlx_nn.RoPE(
+    self.rope = nn.RoPE(
       dim=self.config["head_dim"],
       base=self.config["rope_base"],
       scale=self.config["rope_scale_factor"]
     )
-    self.query_proj = mlx_nn.Linear(
+    self.query_proj = nn.Linear(
       query_input_dims,
       self.config["embed_dim"],
       bias=config.get("attn_bias", False)
     )
-    self.key_proj = mlx_nn.Linear(
+    self.key_proj = nn.Linear(
       key_input_dims,
       self.config["embed_dim"],
       bias=config.get("attn_bias", False)
     )
-    self.value_proj = mlx_nn.Linear(
+    self.value_proj = nn.Linear(
       value_input_dims,
       value_dims,
       bias=config.get("attn_bias", False)
     )
-    self.output_proj = mlx_nn.Linear(
+    self.output_proj = nn.Linear(
       value_dims,
       value_output_dims,
       bias=config.get("attn_bias", False)
@@ -130,22 +133,22 @@ class CachedMultiHeadAttention(mlx_nn.Module):
     scores = (queries * scale) @ keys.transpose(0, 1, 3, 2)
     if mask is not None:
       scores += mask
-    scores = mlx_core.softmax(scores, axis=-1)
+    scores = mx.softmax(scores, axis=-1)
     ctx_out = (scores @ values).transpose(0, 2, 1, 3).reshape(
       batch_size, max_seq_len, -1
     )
 
     return self.output_proj(ctx_out)
 
-class EncodingLayer(mlx_nn.Module):
+class EncodingLayer(nn.Module):
   def __init__(
     self,
     config: dict
   ):
-    self.self_attn = mlx_nn.MultiHeadAttention(
-      dims=self.config["embed_dim"],
-      num_heads=self.config["num_heads"],
-      bias=self.attn_bias
+    super().__init__()
+    self.config = config
+    self.self_attn =CachedMultiHeadAttention(
+      config=self.config
     )
 
     self.mlp = MultiLayerPerceptron(
@@ -153,8 +156,18 @@ class EncodingLayer(mlx_nn.Module):
       hidden_dim=self.config["intermediate_dim"]
     )
 
-    self.sa_norm = mlx_nn.RMSNorm(config["embed_dim"], config["norm_eps"])
-    self.mlp_norm = mlx_nn.RMSNorm(config["embed_dim"], config["norm_eps"])
+    self.sa_norm = nn.RMSNorm(config["embed_dim"], config["norm_eps"])
+    self.mlp_norm = nn.RMSNorm(config["embed_dim"], config["norm_eps"])
+
+  def __call__(self, x, mask=None, cache=None):
+    y = self.sa_norm(x)
+    y = self.self_attn(y, y, y, mask=mask)
+    x = x + y
+    y = self.mlp_norm(x)
+    y = self.mlp(y)
+    x = x + y
+    
+    return x
 
 
 class GeneralMHA:
@@ -166,17 +179,48 @@ class GeneralMHA:
     self.config = config
     self.shard = shard
     self.attn_bias = config.get("attn_bias", False)
-    self.rope = mlx_nn.RoPE(
-      dim=self.config["head_dim"],
-      base=self.config["rope_base"],
-      scale=self.config["rope_scale_factor"]
+
+    self.embed_tokens = nn.Embedding(
+      self.config["vocab_size"],
+      self.config["embed_dim"]
     )
     
     # build layers
     self.layers = [None for _ in range(self.shard.n_layers)]
     for i in range(self.shard.start_layer, self.shard.end_layer + 1):
-      layer = EncodingLayer(config)
-      self.layers[i] = layer
+      self.layers[i] = EncodingLayer(self.config)
+
+    self.norm = nn.RMSNorm(
+      self.config["embed_dim"],
+      self.config["norm_eps"]
+    )
+
+    self.output = nn.Linear(
+      self.config["embed_dim"],
+      self.config["vocab_size"],
+      bias=False
+    )
+  
+  def __call__(self, x, mask=None):
+    # check if hidden value
+    is_hidden_val = False if getattr(x, "dtype", None) in FLOAT_DTYPES and getattr(x, "ndim", None) == 3 else True
+    curr_layers = [self.layers[i] for i in range(self.shard.start_layer, self.shard.end_layer + 1)]
+
+    if mask is None and not is_hidden_val:
+      mask = nn.MultiHeadAttention.create_additive_causal_mask(x.shape[1])
+      mask = mask.astype(self.embed_tokens.weight.dtype)
+
+    if not is_hidden_val:
+      x = self.embed_tokens(x)
+    
+    for layer in curr_layers:
+      x = layer(x, mask)
+
+    if self.shard.end_layer+1 == self.shard.n_layers:
+      x = self.norm(x)
+      return self.output(x)
+    else:
+      return x
 
     
 
