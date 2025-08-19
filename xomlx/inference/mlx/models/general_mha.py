@@ -101,31 +101,38 @@ class CachedMultiHeadAttention(nn.Module):
     )
 
   def __call__(self, queries, keys, values, mask=None):
-    batch_size, max_seq_len, _ = queries.shape
+    batch_size, q_len, _ = queries.shape
     
     if self.cache is None:
-      self.setup_cache(batch_size, max_seq_len)
+      self.setup_cache(batch_size, self.config["max_seq_len"])
     
     queries = self.query_proj(queries)
     keys = self.key_proj(keys)
     values = self.value_proj(values)
 
     queries = queries.reshape(
-      batch_size, max_seq_len, self.num_heads, -1
+      batch_size, q_len, self.num_heads, -1
     ).transpose(0,2,1,3)
     keys = keys.reshape(
-      batch_size, max_seq_len, self.num_heads, -1
+      batch_size, q_len, self.num_heads, -1
     ).transpose(0,2,1,3)
     values = values.reshape(
-      batch_size, max_seq_len, self.num_heads, -1
+      batch_size, q_len, self.num_heads, -1
     ).transpose(0,2,1,3)
 
     if self.cache.cache_pos == 0:
       queries = self.rope(queries)
       keys = self.rope(keys)
     else:
-      queries = self.rope(queries, offset=self.cache.cache_pos)
-      keys = self.rope(keys, offset=self.cache.cache_pos)
+      queries = self.rope(
+        queries,
+        offset=self.cache.cache_pos
+      )
+      
+      keys = self.rope(
+        keys,
+        offset=self.cache.cache_pos
+      )
 
     keys, values = self.cache.update(keys, values)
 
@@ -135,7 +142,7 @@ class CachedMultiHeadAttention(nn.Module):
       scores += mask
     scores = mx.softmax(scores, axis=-1)
     ctx_out = (scores @ values).transpose(0, 2, 1, 3).reshape(
-      batch_size, max_seq_len, -1
+      batch_size, q_len, -1
     )
 
     return self.output_proj(ctx_out)
