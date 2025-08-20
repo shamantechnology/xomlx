@@ -27,7 +27,6 @@ class InferenceEngine(ABC):
   async def infer_tensor(self, request_id: str, shard: Shard, input_data: np.ndarray, inference_state: Optional[dict] = None) -> tuple[np.ndarray, Optional[dict]]:
     pass
 
-  @abstractmethod
   async def load_checkpoint(self, shard: Shard, path: str):
     pass
 
@@ -61,7 +60,7 @@ def get_inference_engine(inference_engine_name: str, shard_downloader: ShardDown
   if DEBUG >= 2:
     print(f"get_inference_engine called with: {inference_engine_name}")
   if inference_engine_name == "mlx":
-    from xomlx.inference.mlx.inference_engine import MLXInferenceEngine
+    from xomlx.inference.mlx_infra.inference_engine import MLXInferenceEngine
     return MLXInferenceEngine(shard_downloader)
   elif inference_engine_name == "dummy":
     from xomlx.inference.dummy_inference_engine import DummyInferenceEngine

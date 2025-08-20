@@ -1,6 +1,10 @@
 import os
 import json
 from pathlib import Path
+import re
+
+from mlx import core as mx
+FLOAT_DTYPES = {mx.float16, mx.bfloat16, mx.float32, mx.float64}
 
 def load_model_config(model_config_path: Path) -> dict:
   """
@@ -45,3 +49,31 @@ def load_model_config(model_config_path: Path) -> dict:
       model_config["max_seq_len"] = model_config["rope_scaling"]["original_max_position_embeddings"]
 
   return model_config
+
+def rewrite_weights(weight_path: str):
+    w = mx.load(weight_path)
+    remapped = {}
+    for k, v in w.items():
+        new_k = re.sub(r'^(?:model\.)+', '', k)
+        if new_k in remapped and remapped[new_k] is not v:
+            raise ValueError(f"Key collision after stripping prefix: '{k}' -> '{new_k}' already exists.")
+        remapped[new_k] = v
+    if "output.weight" not in remapped and "embed_tokens.weight" in remapped:
+        remapped["output.weight"] = remapped["embed_tokens.weight"]
+    return remapped
+
+def load_model_weights(
+  model_dir: Path,
+  model: any
+):
+  safetensor_files = list(model_dir.glob("*.safetensors"))
+  if len(safetensor_files) == 0:
+    npz_weights = model_dir / "weights.npz"
+    model.load_weights(
+      rewrite_weights(str(npz_weights))
+    )
+  else:
+    for safetensor_file in safetensor_files:
+      model.load_weights(
+        rewrite_weights(str(safetensor_file))
+      )

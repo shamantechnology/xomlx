@@ -100,7 +100,7 @@ parser.add_argument("--disable-tui", action=argparse.BooleanOptionalAction, help
 parser.add_argument("--chat-tui", action="store_true", help="Enable terminal-based chat mode for token speed debugging")
 parser.add_argument("--run-model", type=str, help="Specify a model to run directly")
 parser.add_argument("--prompt", type=str, help="Prompt for the model when using --run-model", default="Who are you?")
-parser.add_argument("--default-temp", type=float, help="Default token sampling temperature", default=0.0)
+parser.add_argument("--default-temp", type=float, help="Default token sampling temperature", default=1.0)
 parser.add_argument("--tailnet-name", type=str, default=None, help="Tailnet name")
 parser.add_argument("--node-id-filter", type=str, default=None, help="Comma separated list of allowed node IDs (only for UDP discovery)")
 parser.add_argument("--interface-type-filter", type=str, default=None, help="Comma separated list of allowed interface types (only for UDP discovery)")

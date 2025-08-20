@@ -6,183 +6,182 @@ model_cards = {
   "llama-3.3-70b": {
     "layers": 80,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Llama-3.3-70B-Instruct",
+      "MLXInferenceEngine": "unsloth/Llama-3.3-70B-Instruct",
     },
   },
   "llama-3.2-1b": {
     "layers": 16,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Llama-3.2-1B-Instruct",
-      "CheetahInferenceEngine": "unsloth/Llama-3.2-1B-Instruct",
+      "MLXInferenceEngine": "unsloth/Llama-3.2-1B-Instruct",
     },
   },
   "llama-3.2-3b": {
     "layers": 28,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Llama-3.2-3B-Instruct"
+      "MLXInferenceEngine": "unsloth/Llama-3.2-3B-Instruct"
     },
   },
   "llama-3.1-8b": {
     "layers": 32,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Meta-Llama-3.1-8B-Instruct",
+      "MLXInferenceEngine": "unsloth/Meta-Llama-3.1-8B-Instruct",
     },
   },
   "llama-3.1-70b": {
     "layers": 80,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Meta-Llama-3.1-70B-Instruct",
+      "MLXInferenceEngine": "unsloth/Meta-Llama-3.1-70B-Instruct",
     },
   },
   "llama-3-8b": {
     "layers": 32,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/llama-3-8b",
+      "MLXInferenceEngine": "unsloth/llama-3-8b",
     },
   },
   "llama-3-70b": {
     "layers": 80,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/llama-3-70b-bnb-4bit",
+      "MLXInferenceEngine": "unsloth/llama-3-70b-bnb-4bit",
     },
   },
   "llama-3.1-405b": {
     "layers": 126,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Meta-Llama-3.1-405B-Instruct-bnb-4bit",
+      "MLXInferenceEngine": "unsloth/Meta-Llama-3.1-405B-Instruct-bnb-4bit",
     },
   },
   "llama-3.1-405b-8bit": {
     "layers": 126,
-    "repo": {"TorchDynamicShardInferenceEngine": "unsloth/Meta-Llama-3.1-405B-Instruct-bnb-4bit",},
+    "repo": {"MLXInferenceEngine": "unsloth/Meta-Llama-3.1-405B-Instruct-bnb-4bit",},
   },
   ### mistral
   "mistral-nemo": {
     "layers": 40,
-    "repo": {"TorchDynamicShardInferenceEngine": "unsloth/Mistral-Nemo-Instruct-2407-bnb-4bit",},
+    "repo": {"MLXInferenceEngine": "unsloth/Mistral-Nemo-Instruct-2407-bnb-4bit",},
   },
   "mistral-large": {
     "layers": 88,
-    "repo": {"TorchDynamicShardInferenceEngine": "unsloth/Mistral-Large-Instruct-2407-bnb-4bit",},
+    "repo": {"MLXInferenceEngine": "unsloth/Mistral-Large-Instruct-2407-bnb-4bit",},
   },
   ### deepseek
-  "deepseek-coder-v2-lite": { "layers": 27, "repo": { "TorchDynamicShardInferenceEngine": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct", }, },
-  "deepseek-v3": { "layers": 61, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-V3-bf16", }, },
-  "deepseek-r1": { "layers": 61, "repo": { "TorchDynamicShardInferenceEngine": "deepseek-ai/DeepSeek-R1", }, },
+  "deepseek-coder-v2-lite": { "layers": 27, "repo": { "MLXInferenceEngine": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct", }, },
+  "deepseek-v3": { "layers": 61, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-V3-bf16", }, },
+  "deepseek-r1": { "layers": 61, "repo": { "MLXInferenceEngine": "deepseek-ai/DeepSeek-R1", }, },
   ### deepseek distills
-  "deepseek-r1-distill-qwen-1.5b": { "layers": 28, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-1.5B", }, },
-  "deepseek-r1-distill-qwen-7b": { "layers": 28, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-7B", }, },
-  "deepseek-r1-distill-qwen-14b": { "layers": 48, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-14B", }, },
-  "deepseek-r1-distill-qwen-32b": { "layers": 64, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-32B", }, },
-  "deepseek-r1-distill-llama-8b": { "layers": 32, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-R1-Distill-Llama-8B", }, },
-  "deepseek-r1-distill-llama-70b": { "layers": 80, "repo": { "TorchDynamicShardInferenceEngine": "unsloth/DeepSeek-R1-Distill-Llama-70B", }, },
+  "deepseek-r1-distill-qwen-1.5b": { "layers": 28, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-1.5B", }, },
+  "deepseek-r1-distill-qwen-7b": { "layers": 28, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-7B", }, },
+  "deepseek-r1-distill-qwen-14b": { "layers": 48, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-14B", }, },
+  "deepseek-r1-distill-qwen-32b": { "layers": 64, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-R1-Distill-Qwen-32B", }, },
+  "deepseek-r1-distill-llama-8b": { "layers": 32, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-R1-Distill-Llama-8B", }, },
+  "deepseek-r1-distill-llama-70b": { "layers": 80, "repo": { "MLXInferenceEngine": "unsloth/DeepSeek-R1-Distill-Llama-70B", }, },
   ### llava
   "llava-1.5-7b-hf": {
     "layers": 32,
-    "repo": {"TorchDynamicShardInferenceEngine": "llava-hf/llava-1.5-7b-hf",},
+    "repo": {"MLXInferenceEngine": "llava-hf/llava-1.5-7b-hf",},
   },
   ### qwen
   "qwen-2.5-0.5b": {
     "layers": 28,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-0.5B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-0.5B-Instruct"
     },
   },
   "qwen-2.5-1.5b": {
     "layers": 28,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-1.5B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-1.5B-Instruct"
     },
   },
   "qwen-2.5-coder-1.5b": {
     "layers": 28,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-Coder-1.5B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-Coder-1.5B-Instruct"
     },
   },
   "qwen-2.5-3b": {
     "layers": 36,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-3B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-3B-Instruct"
     },
   },
   "qwen-2.5-coder-3b": {
     "layers": 36,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-Coder-3B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-Coder-3B-Instruct"
     },
   },
   "qwen-2.5-7b": {
     "layers": 28,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-7B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-7B-Instruct"
     },
   },
   "qwen-2.5-coder-7b": {
     "layers": 28,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-Coder-7B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-Coder-7B-Instruct"
     },
   },
   "qwen-2.5-14b": {
     "layers": 48,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-14B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-14B-Instruct"
     },
   },
   "qwen-2.5-coder-14b": {
     "layers": 48,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen2.5-Coder-14B-Instruct"
+      "MLXInferenceEngine": "unsloth/Qwen2.5-Coder-14B-Instruct"
     },
   },
   "qwen-2.5-32b": {
     "layers": 64,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "Qwen/Qwen2.5-32B-Instruct"
+      "MLXInferenceEngine": "Qwen/Qwen2.5-32B-Instruct"
     },
   },
   "qwen-3-32b": {
     "layers": 64,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen3-32B-unsloth-bnb-4bit"
+      "MLXInferenceEngine": "unsloth/Qwen3-32B-unsloth-bnb-4bit"
     },
   },
   "qwen-3-30b-a3b": {
     "layers": 48,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "unsloth/Qwen3-30B-A3B-bnb-4bit"
+      "MLXInferenceEngine": "unsloth/Qwen3-30B-A3B-bnb-4bit"
     },
   },
   "qwen-2.5-coder-32b": {
     "layers": 64,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "Qwen/Qwen2.5-Coder-32B-Instruct"
+      "MLXInferenceEngine": "Qwen/Qwen2.5-Coder-32B-Instruct"
     },
   },
   "qwen-2.5-72b": {
     "layers": 80,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "Qwen/Qwen2.5-72B-Instruct"
+      "MLXInferenceEngine": "Qwen/Qwen2.5-72B-Instruct"
     },
   },
   "qwen-2.5-math-72b": {
     "layers": 80,
     "repo": {
-      "TorchDynamicShardInferenceEngine": "Qwen/Qwen2.5-Math-72B-Instruct"
+      "MLXInferenceEngine": "Qwen/Qwen2.5-Math-72B-Instruct"
     },
   },
   ### nemotron
   "nemotron-70b": {
     "layers": 80,
-    "repo": {"TorchDynamicShardInferenceEngine": "nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",},
+    "repo": {"MLXInferenceEngine": "nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",},
   },
   # stable diffusion
-  # "stable-diffusion-2-1-base": {"layers": 31, "repo": {"TorchDynamicShardInferenceEngine": "stabilityai/stable-diffusion-2-1-base"}},
+  # "stable-diffusion-2-1-base": {"layers": 31, "repo": {"MLXInferenceEngine": "stabilityai/stable-diffusion-2-1-base"}},
   # phi
   "phi-4-mini-instruct": {
     "layers": 40,
-    "repo": {"TorchDynamicShardInferenceEngine": "microsoft/Phi-4-mini-instruct",},
+    "repo": {"MLXInferenceEngine": "microsoft/Phi-4-mini-instruct",},
   },
   # dummy
   "dummy": {

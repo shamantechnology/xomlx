@@ -38,7 +38,7 @@ class KVCache:
     if self.cache_pos + seq_len > self.max_seq_len:
       raise ValueError("Model Cache Size Exceeded")
 
-    # possible overflow fix for when reaching cache limit
+    # wip possible overflow fix for when reaching cache limit
     # overflow = max(0, self.cache_pos + seq_len - self.max_seq_len)
     # if overflow > 0:
     #   print("!!! Model Cache Size Exceeded !!!")
@@ -52,7 +52,7 @@ class KVCache:
     #     print("Dropping entire cache")
     #     # drop everything
     #     self.cache_pos = 0
-
+    
     self.k_cache[:, :, self.cache_pos:self.cache_pos + seq_len, :] = k_val
     self.v_cache[:, :, self.cache_pos:self.cache_pos + seq_len, :] = v_val
     self.cache_pos += seq_len

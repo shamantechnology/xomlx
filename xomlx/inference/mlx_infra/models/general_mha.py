@@ -3,23 +3,12 @@ General MultiHeadAttention for MLX
 """
 import math
 from typing import Optional, Tuple
-import logging
 
 from mlx import nn
 from mlx import core as mx
 
 from xomlx.inference.shard import Shard
-from xomlx.helpers import DEBUG, LOG_PATH
-from .kvcache import KVCache
-
-logging.basicConfig( 
-    filename=LOG_PATH,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    filemode="a"
-)
-
-FLOAT_DTYPES = {mx.float16, mx.bfloat16, mx.float32, mx.float64}
+from xomlx.inference.mlx_infra.models.kvcache import KVCache
 
 class MultiLayerPerceptron(nn.Module):
   def __init__(
@@ -59,35 +48,37 @@ class CachedMultiHeadAttention(nn.Module):
     self.config = config
     self.cache = None
     
+    if key_input_dims is not None:
+      key_input_dims = key_input_dims
+    elif self.config["num_kv_heads"] == self.config["num_heads"]:
+      key_input_dims = self.config["embed_dim"]
+    else:
+      key_input_dims = self.config["num_kv_heads"] * self.config["head_dim"]
+    
     query_input_dims = query_input_dims or self.config["embed_dim"]
-    key_input_dims = key_input_dims or config["embed_dim"]
     value_input_dims = value_input_dims or key_input_dims
     value_dims = value_dims or self.config["embed_dim"]
     value_output_dims = value_output_dims or self.config["embed_dim"]
 
-    self.num_heads = config["num_heads"]
-    self.rope = nn.RoPE(
-      dim=self.config["head_dim"],
-      base=self.config["rope_base"],
-      scale=self.config["rope_scale_factor"]
-    )
-    self.query_proj = nn.Linear(
+    self.num_heads = self.config["num_heads"]
+    self.num_kv_heads = self.config["num_kv_heads"]
+    self.q_proj = nn.Linear(
+      self.config["embed_dim"],
       query_input_dims,
-      self.config["embed_dim"],
       bias=config.get("attn_bias", False)
     )
-    self.key_proj = nn.Linear(
+    self.k_proj = nn.Linear(
+      self.config["embed_dim"],
       key_input_dims,
+      bias=config.get("attn_bias", False)
+    )
+    self.v_proj = nn.Linear(
       self.config["embed_dim"],
-      bias=config.get("attn_bias", False)
-    )
-    self.value_proj = nn.Linear(
       value_input_dims,
-      value_dims,
       bias=config.get("attn_bias", False)
     )
-    self.output_proj = nn.Linear(
-      value_dims,
+    self.o_proj = nn.Linear(
+      self.config["embed_dim"],
       value_output_dims,
       bias=config.get("attn_bias", False)
     )
@@ -95,49 +86,64 @@ class CachedMultiHeadAttention(nn.Module):
   def setup_cache(self, batch_size: int, max_seq_len: int):
     self.cache = KVCache(
       batch_size=batch_size,
-      num_heads=self.config["num_heads"],
+      num_heads=self.config["num_kv_heads"],
       head_dim=self.config["head_dim"],
       max_seq_len=max_seq_len
     )
 
   def __call__(self, queries, keys, values, mask=None):
     batch_size, q_len, _ = queries.shape
+
+    rope = nn.RoPE(
+      dims=self.config["embed_dim"] // self.config["head_dim"],
+      base=self.config["rope_base"],
+      scale=self.config["rope_scaling_factor"],
+      traditional=True
+    )
     
     if self.cache is None:
       self.setup_cache(batch_size, self.config["max_seq_len"])
     
-    queries = self.query_proj(queries)
-    keys = self.key_proj(keys)
-    values = self.value_proj(values)
+    queries = self.q_proj(queries)
+    keys = self.k_proj(keys)
+    values = self.v_proj(values)
 
     queries = queries.reshape(
       batch_size, q_len, self.num_heads, -1
     ).transpose(0,2,1,3)
     keys = keys.reshape(
-      batch_size, q_len, self.num_heads, -1
+      batch_size, q_len, self.num_kv_heads, -1
     ).transpose(0,2,1,3)
     values = values.reshape(
-      batch_size, q_len, self.num_heads, -1
+      batch_size, q_len, self.num_kv_heads, -1
     ).transpose(0,2,1,3)
 
     if self.cache.cache_pos == 0:
-      queries = self.rope(queries)
-      keys = self.rope(keys)
+      queries = rope(queries)
+      keys = rope(keys)
     else:
-      queries = self.rope(
+      queries = rope(
         queries,
         offset=self.cache.cache_pos
       )
       
-      keys = self.rope(
+      keys = rope(
         keys,
         offset=self.cache.cache_pos
       )
 
     keys, values = self.cache.update(keys, values)
 
+    if self.num_kv_heads != self.num_heads:
+      rep = self.num_heads // self.num_kv_heads
+      keys = mx.repeat(keys, rep, axis=1)
+      values = mx.repeat(values, rep, axis=1)
+
     scale = math.sqrt(1 / queries.shape[-1])
-    scores = (queries * scale) @ keys.transpose(0, 1, 3, 2)
+
+    # alignment score calculation
+    scaled_queries = (queries * scale)
+    scores = scaled_queries @ keys.transpose(0, 1, 3, 2)
     if mask is not None:
       scores += mask
     scores = mx.softmax(scores, axis=-1)
@@ -145,7 +151,7 @@ class CachedMultiHeadAttention(nn.Module):
       batch_size, q_len, -1
     )
 
-    return self.output_proj(ctx_out)
+    return self.o_proj(ctx_out)
 
 class EncodingLayer(nn.Module):
   def __init__(
@@ -163,26 +169,26 @@ class EncodingLayer(nn.Module):
       hidden_dim=self.config["intermediate_dim"]
     )
 
-    self.sa_norm = nn.RMSNorm(config["embed_dim"], config["norm_eps"])
-    self.mlp_norm = nn.RMSNorm(config["embed_dim"], config["norm_eps"])
+    self.input_layernorm = nn.RMSNorm(config["embed_dim"], config["norm_eps"])
+    self.post_attention_layernorm = nn.RMSNorm(config["embed_dim"], config["norm_eps"])
 
-  def __call__(self, x, mask=None, cache=None):
-    y = self.sa_norm(x)
+  def __call__(self, x, mask=None):
+    y = self.input_layernorm(x)
     y = self.self_attn(y, y, y, mask=mask)
     x = x + y
-    y = self.mlp_norm(x)
+    y = self.post_attention_layernorm(x)
     y = self.mlp(y)
     x = x + y
     
     return x
 
-
-class GeneralMHA:
+class GeneralMHA(nn.Module):
   def __init__(
     self,
     config: dict,
     shard: Shard
   ):
+    super().__init__()
     self.config = config
     self.shard = shard
     self.attn_bias = config.get("attn_bias", False)
@@ -208,14 +214,8 @@ class GeneralMHA:
       bias=False
     )
   
-  def __call__(self, x, mask=None):
-    # check if hidden value
-    is_hidden_val = False if getattr(x, "dtype", None) in FLOAT_DTYPES and getattr(x, "ndim", None) == 3 else True
+  def __call__(self, x, mask, is_hidden_val=False):
     curr_layers = [self.layers[i] for i in range(self.shard.start_layer, self.shard.end_layer + 1)]
-
-    if mask is None and not is_hidden_val:
-      mask = nn.MultiHeadAttention.create_additive_causal_mask(x.shape[1])
-      mask = mask.astype(self.embed_tokens.weight.dtype)
 
     if not is_hidden_val:
       x = self.embed_tokens(x)
@@ -225,7 +225,7 @@ class GeneralMHA:
 
     if self.shard.end_layer+1 == self.shard.n_layers:
       x = self.norm(x)
-      return self.output(x)
+      return self.output(x[:, -1])
     else:
       return x
 
