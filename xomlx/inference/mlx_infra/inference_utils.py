@@ -42,7 +42,9 @@ def load_model_config(model_config_path: Path) -> dict:
     }
 
     if model_config.get("rope_scaling", None) is not None:
-      model_config["rope_scaling_factor"] = model_config["rope_scaling"].get("rope_factor", 32)
+      model_config["rope_scaling_factor"] = model_config["rope_scaling"].get("factor", 1.0)
+    else:
+      model_config["rope_scaling_factor"] = 1.0
 
     use_org_seq = bool(os.getenv("TORCH_USE_ORG_SEQ", "False").lower() == "true")
     if use_org_seq and model_config.get("rope_scaling", None) is not None:
@@ -50,30 +52,54 @@ def load_model_config(model_config_path: Path) -> dict:
 
   return model_config
 
-def rewrite_weights(weight_path: str):
-    w = mx.load(weight_path)
+def rewrite_weights(weight_path: str, config: dir):
+    w = mx.load(weight_path)  # supports .npz and .safetensors
+    strip_model = re.compile(r'^(?:model\.)+')
+
     remapped = {}
     for k, v in w.items():
-        new_k = re.sub(r'^(?:model\.)+', '', k)
-        if new_k in remapped and remapped[new_k] is not v:
-            raise ValueError(f"Key collision after stripping prefix: '{k}' -> '{new_k}' already exists.")
-        remapped[new_k] = v
-    if "output.weight" not in remapped and "embed_tokens.weight" in remapped:
-        remapped["output.weight"] = remapped["embed_tokens.weight"]
+        nk = strip_model.sub('', k)
+        if nk in remapped and remapped[nk] is not v:
+            raise ValueError(f"Key collision after stripping prefix: '{k}' -> '{nk}' already exists.")
+        remapped[nk] = v
+
+    if "output.weight" not in remapped:
+        if "lm_head.weight" not in remapped:
+          config["tie_word_embeddings"] = True
+        else:
+          config["tie_word_embeddings"] = False
+
     return remapped
 
 def load_model_weights(
   model_dir: Path,
-  model: any
+  model: any,
+  config: dict
 ):
   safetensor_files = list(model_dir.glob("*.safetensors"))
   if len(safetensor_files) == 0:
     npz_weights = model_dir / "weights.npz"
     model.load_weights(
-      rewrite_weights(str(npz_weights))
+      rewrite_weights(str(npz_weights), config)
     )
   else:
     for safetensor_file in safetensor_files:
       model.load_weights(
-        rewrite_weights(str(safetensor_file))
+        rewrite_weights(str(safetensor_file), config)
       )
+
+def check_tied_weights(model_dir: Path, config: dict):
+    safetensor_files = list(model_dir.glob("*.safetensors"))
+    weight_files = []
+    if len(safetensor_files) == 0:
+      weight_files.append(model_dir / "weights.npz")
+    else:
+      weight_files.extend(safetensor_files)
+
+    for weight_file in weight_files:
+      w = mx.load(str(weight_file))
+      if config.get("tie_word_embeddings", False):
+        if "lm_head.weight" not in w:
+          setattr(config, "tie_word_embeddings", True)
+        else:
+          setattr(config, "tie_word_embeddings", False)

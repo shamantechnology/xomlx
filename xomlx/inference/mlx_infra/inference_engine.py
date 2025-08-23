@@ -12,7 +12,7 @@ import logging
 
 import mlx.core as mx
 import mlx.nn as nn
-from mlx.utils import tree_flatten
+from mlx_lm.sample_utils import make_sampler
 import numpy as np
 
 from xomlx.inference.inference_engine import InferenceEngine
@@ -25,7 +25,7 @@ from xomlx.inference.mlx_infra.inference_utils import (
   load_model_config,
   load_model_weights,
   FLOAT_DTYPES,
-
+  check_tied_weights
 )
 
 logging.basicConfig( 
@@ -36,6 +36,7 @@ logging.basicConfig(
 )
 
 TEMP = 0.6
+TOP_K = 300
 
 class MLXInferenceEngine(InferenceEngine):
   def __init__(self, shard_downloader: ShardDownloader):
@@ -44,7 +45,7 @@ class MLXInferenceEngine(InferenceEngine):
     self.model = None
     self.tokenizer = None
     self.request_id = None
-    self.executor = ThreadPoolExecutor(max_workers=1)
+    self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx")
     self.uuid = str(uuid.uuid4())
     self.model_path = None
     self.model_config = None
@@ -81,23 +82,25 @@ class MLXInferenceEngine(InferenceEngine):
       self.executor,
       functools.partial(self.tokenizer.decode, tokens.tolist()),
     )
-  
-  async def sample(self, x: np.ndarray, temp=TEMP) -> np.ndarray:
+  async def _eval_mlx(self, *args):
+    await asyncio.get_running_loop().run_in_executor(self.executor, mx.eval, *args)
+
+  async def sample(self, x: np.ndarray, temp=TEMP, top_k=TOP_K) -> np.ndarray:
     if DEBUG >= 4:
       print("sample called")
       print(f"x: {x}")
+      print(f"x shape: {x.shape}")
+      print(f"x dtype: {x.dtype}")
       print(f"temp: {temp}")
     
-    x = mx.array(x)
+    logits = mx.array(x)
+    logits = logits[:, -1, :]
+    logprobs = logits - mx.logsumexp(logits, keepdims=True)
 
-    if temp == 0.0:
-      temp = TEMP
-
-    def sample_wrapper():
-      sample = mx.random.categorical(x * (1/temp))
-      return np.array(sample)
-
-    return await asyncio.get_running_loop().run_in_executor(self.executor, sample_wrapper)
+    sampler = make_sampler(temp=temp, top_p=1.0)
+    sample = sampler(logprobs)
+    await self._eval_mlx(sample)
+    return np.asarray(sample, dtype=int)
 
   async def infer_tensor(
     self,
@@ -107,17 +110,13 @@ class MLXInferenceEngine(InferenceEngine):
     inference_state: Optional[dict] = None
   ) -> tuple[np.ndarray, Optional[dict]]:
     if DEBUG >= 4:
-      logging.info("infer_tensor called")
-      logging.info(f"shard: {shard}")
-      logging.info(f"input_data: {input_data}")
-      logging.info(f"{input_data=}")
+      print("infer_tensor called")
+      print(f"shard: {shard}")
+      print(f"input_data: {input_data}")
+      print(f"{input_data.shape=}")
 
     await self.ensure_shard(shard)
     input_data = mx.array(input_data)
-    print(f"{input_data=}")
-
-    if inference_state is None:
-      inference_state = {}
 
     # check if hidden value
     is_hidden_val = True if getattr(
@@ -125,15 +124,10 @@ class MLXInferenceEngine(InferenceEngine):
 
     def infer_wrapper():
       if not is_hidden_val:
-        inference_state["mask"] = nn.MultiHeadAttention.create_additive_causal_mask(input_data.shape[1])
-        inference_state["mask"] = inference_state["mask"].astype(self.model.embed_tokens.weight.dtype)
-        model_out = self.model(input_data, inference_state["mask"])
+        model_out = self.model(input_data)
       else:
-        if inference_state is not None:
-          model_out = self.model(input_data, inference_state["mask"], True)
-        else:
-          raise ValueError("mask is missing for hidden values")
-      return np.array(model_out), inference_state
+        model_out = self.model(input_data, True)
+      return np.array(model_out.astype(mx.float32), copy=False), {}
 
     return await asyncio.get_running_loop().run_in_executor(self.executor, infer_wrapper)
   
@@ -156,9 +150,9 @@ class MLXInferenceEngine(InferenceEngine):
     def infer_model():
       logging.debug("start_model called")
       
+      check_tied_weights(self.model_path, self.model_config)
       self.model = GeneralMHA(self.model_config, self.shard)
-      print(f"self.model: {self.model}")
-      load_model_weights(self.model_path, self.model)
+      load_model_weights(self.model_path, self.model, self.model_config)
     
     await asyncio.get_running_loop().run_in_executor(
       self.executor,
